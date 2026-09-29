@@ -104,7 +104,30 @@ codex-computer-use.exe（Rust 原生助手）
 
 ## 安装
 
-在 DSH profile 的 `package.json` 里加依赖与 bundle 行：
+**从 git 安装（开箱即用）：**
+
+```jsonc
+{
+  "dependencies": {
+    "dsh-computer-use": "github:gxpppp/dsh-computer-use"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        // …其它 bundle
+        "dsh-computer-use"
+      ]
+    }
+  }
+}
+```
+
+仓库自带预构建的 `lib/index.js`，装完直接可用，不需要任何构建步骤。
+
+> 这一点是刻意的：DSH 从 git 安装插件时**只加载 `lib/index.js`，不会执行构建**。
+> 仓库里没有它，插件就会以 `failed to import` 启动失败。
+
+**本地开发（link 模式）：**
 
 ```jsonc
 {
@@ -122,7 +145,7 @@ codex-computer-use.exe（Rust 原生助手）
 }
 ```
 
-然后重启 DSH。`cordis.patch.yml` 会把插件行插进配置。
+改完重启 DSH。`cordis.patch.yml` 会把插件行插进配置。
 
 ---
 
