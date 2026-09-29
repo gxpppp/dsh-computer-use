@@ -1,0 +1,10 @@
+# dsh-computer-use bundle patch.
+#
+# Inserts only the host plugin row. The plugin registers six model tools
+# (computer_use_status, computer_use_apps, computer_use_state, computer_use_act,
+# computer_use_launch, computer_use_reset) and ships a SKILL.md plus docs/ so the
+# model can read the workflow before touching the desktop. It spawns no client
+# bundle, so no client-side row is declared here.
+- insert:
+    - id: computer-use
+      name: dsh-computer-use

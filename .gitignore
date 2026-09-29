@@ -1,0 +1,12 @@
+# 构建产物与依赖
+lib/
+node_modules/
+
+# 测试与探针的临时目录
+.smoke/
+.probe-tmp/
+
+# 本地环境
+*.log
+.env
+.env.*

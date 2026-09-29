@@ -1,0 +1,12 @@
+# 仓库内统一按 LF 存储；Windows 工作区不再触发 CRLF 转换产生的无谓 diff。
+* text=auto eol=lf
+
+# 二进制资源不参与文本转换。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.woff binary
+*.woff2 binary

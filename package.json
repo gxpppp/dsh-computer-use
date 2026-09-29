@@ -1,0 +1,70 @@
+{
+  "name": "dsh-computer-use",
+  "version": "0.1.0",
+  "description": "Windows 桌面 Computer Use 工具：驱动本机 Codex 原生助手（codex-computer-use.exe），经 stdio JSON-RPC 提供 UI 自动化（UI Automation 树 + SendInput 输入注入）。",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "computer-use",
+    "desktop-automation",
+    "ui-automation",
+    "node-repl",
+    "windows"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "dsh-computer-use contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gxpppp/dsh-computer-use.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gxpppp/dsh-computer-use/issues"
+  },
+  "homepage": "https://github.com/gxpppp/dsh-computer-use#readme",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib",
+    "src",
+    "docs",
+    "scripts",
+    "cordis.patch.yml",
+    "SKILL.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-agent": "^0.1.5-rc.3",
+    "@deepseek-ai/dsh-attachment": "^0.1.5-rc.3",
+    "@deepseek-ai/dsh-llm": "^0.1.5-rc.3",
+    "@deepseek-ai/dsh-settings": "^0.1.5-rc.3",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.5-rc.3",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.3",
+    "@deepseek-ai/dsh-user-approval": "^0.1.5-rc.3",
+    "@deepseek-ai/schemastery": "^3.18.2",
+    "@types/node": "^22.19.1",
+    "esbuild": "^0.25.0",
+    "typescript": "~5.7.2"
+  }
+}
