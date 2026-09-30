@@ -103,7 +103,7 @@ helper 需要 `CODEX_CLI_PATH` 指向 codex.exe，否则报 `failed to launch co
   disabled: false
   config:
     alwaysAllowedAppIds:
-      - mddclass.exe
+      - mspaint.exe
       - msedge.exe
 ```
 
