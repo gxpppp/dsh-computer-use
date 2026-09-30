@@ -5,13 +5,15 @@
 它不做像素级识别：用 **UI Automation 可访问性树**「看」窗口，用 **SendInput 输入注入**「动」窗口。
 底层复用本机已安装的 Codex 原生助手 `codex-computer-use.exe`，不重新实现一遍 Win32 交互。
 
+**目录**：[和 Codex 原版的关系](#它和-codex-原版的关系) · [依赖](#依赖) · [能力矩阵](#能力矩阵) · [六个工具](#六个工具) · [授权模型](#授权模型) · [配置项](#配置项) · [架构](#架构) · [安装](#安装) · [开发](#开发) · [故障排查](#故障排查)
+
 ---
 
 ## 它和 Codex 原版的关系
 
 | 维度 | Codex 原版 | 本插件 |
 |---|---|---|
-| 模型接口 | `node_repl` 持久 JS 会话 + `@oai/sky` | 5 个扁平 DSH 工具 |
+| 模型接口 | `node_repl` 持久 JS 会话 + `@oai/sky` | 6 个扁平 DSH 工具 |
 | 传输 | stdio / 命名管道 JSON-RPC | **同一套** stdio JSON-RPC（4 字节长度前缀在管道模式下，stdio 模式按 `\n` 分帧） |
 | 原生层 | `codex-computer-use.exe` | **同一个 exe，直接复用** |
 | 审批 | MCP elicitation | DSH `approval.request()` |
@@ -53,16 +55,68 @@ helper 需要 `CODEX_CLI_PATH` 指向 codex.exe，否则报 `failed to launch co
 
 ## 六个工具
 
-| 工具 | 作用 |
-|---|---|
-| `computer_use_status` | 自检（helper 定位、进程、截图能力、已授权应用）；`action="reset"` 清授权并重启 helper |
-| `computer_use_apps` | 枚举应用或窗口（只读） |
-| `computer_use_state` | 取窗口快照：可访问性树（含索引与焦点）、截图，或两者 |
-| `computer_use_act` | 执行**一个**动作（含 `paste_text`），默认自动刷新并回传新状态 |
-| `computer_use_wait` | 等界面就绪：文本出现/消失、窗口关闭 |
-| `computer_use_launch` | 启动应用并轮询等待窗口出现 |
+| 工具 | 作用 | 首次触碰某应用需授权 |
+|---|---|---|
+| `computer_use_status` | 自检（helper 定位、进程、截图能力、已授权应用、免审批白名单）；`action="reset"` 清授权并重启 helper | 否 |
+| `computer_use_apps` | 枚举应用或窗口（只读） | 否 |
+| `computer_use_state` | 取窗口快照：可访问性树（含索引与焦点）、截图，或两者 | 是 |
+| `computer_use_act` | 执行**一个**动作（含 `paste_text`），默认自动刷新并回传新状态 | 是 |
+| `computer_use_wait` | 等界面就绪：文本出现/消失、窗口关闭 | 是 |
+| `computer_use_launch` | 启动应用并轮询等待窗口出现 | 是 |
 
-完整参数见 `docs/api.md`；工作流纪律见 `docs/guidance.md`；确认策略见 `docs/confirmations.md`。
+完整参数见 `docs/api.md`；工作流纪律见 `docs/guidance.md`；确认策略见 `docs/confirmations.md`；
+面向模型侧的精简版在 `SKILL.md`。
+
+---
+
+## 授权模型
+
+**每个应用在被操作之前，都要先拿到一张票。** 拿不到就报
+`未授权 Computer Use 使用「应用名」`——而且一次都不会真正碰到那个窗口。
+
+票只有两个来源，按这个顺序检查：
+
+| 顺序 | 来源 | 判定条件 |
+|---|---|---|
+| 1 | **免审批白名单** | 应用名命中 `alwaysAllowedAppIds`（归一化后比较） |
+| 2 | **审批弹窗** | 走 DSH `approval.request()`，必须返回 `allowed-once` |
+
+票缓存在 **helper 进程的内存**里，DSH 或 helper 重启即失效。
+
+### `alwaysAllowedAppIds` 的匹配规则
+
+比较前会把两边都归一化成**小写、去扩展名、去路径、去 `process:` 前缀**的叶子名：
+
+| 你写的 | helper 上报的 | 归一化后 | 是否命中 |
+|---|---|---|---|
+| `msedge.exe` | `MSEdge` | `msedge` / `msedge` | ✅ |
+| `msedge` | `process:C:\...\msedge.exe` | `msedge` / `msedge` | ✅ |
+| `画图` | `mspaint.exe` | `画图` / `mspaint` | ❌ |
+
+**写 exe 名的命中率最高**；中文显示名只有在 helper 上报的恰好就是该中文名时才匹配。
+
+### 配置写在哪
+
+```yaml
+# cordis.patch.yml —— profile 的 loader patch 层
+- id: computer-use
+  disabled: false
+  config:
+    alwaysAllowedAppIds:
+      - mddclass.exe
+      - msedge.exe
+```
+
+**这条路别指望 GUI 设置页。** 插件用 `settings.installSection()` 注册配置项，而部分 DSH
+版本只提供旧的 `register()`，从设置面板写进去的值不会落地到插件读的配置对象上。把白名单
+固定在 loader patch 层最稳；改完**重启 DSH** 生效。
+
+### 拿不到票时按这个顺序排查
+
+1. `computer_use_status` 的「免审批白名单」一行，确认目标应用确实在里面；
+2. 审批弹窗那条路要求当前会话的 approval 策略是 **`ask`**。策略为 `never` 时审批请求会被
+   **直接判定为拒绝**，弹窗根本不会出现——这不是插件故障，是策略本身的行为；
+3. 两条路都走不通时，用 `computer_use_status` 的 `action="reset"` 清空已授权集合再重试。
 
 ---
 
@@ -76,10 +130,10 @@ helper 需要 `CODEX_CLI_PATH` 指向 codex.exe，否则报 `failed to launch co
 | `codexHome` | `''` | 空 = `%USERPROFILE%\.codex` |
 | `requestTimeoutMs` | `15000` | 单次 RPC 超时 |
 | `launchTimeoutMs` | `25000` | `launch_app` 专用超时 |
-| `alwaysAllowedAppIds` | `[]` | 免审批白名单，接受 `mspaint.exe` / `画图` 等多种写法 |
+| `alwaysAllowedAppIds` | `[]` | 免审批白名单；写法与匹配规则见[授权模型](#授权模型) |
 | `autoRefreshAfterAction` | `true` | 动作后自动刷新状态 |
 | `maxTreeChars` | `12000` | 回传的树字符上限 |
-| `allowScreenshots` | `false` | 是否允许截图请求（Win10 保持 false） |
+| `allowScreenshots` | `true` | 是否允许截图请求；Win10 上建议设 `false`（`PrintWindow` 每张 1–3 秒，且读不到硬件加速窗口） |
 | `idleShutdownMs` | `300000` | helper 空闲回收时间，0 = 常驻 |
 
 ---
@@ -87,7 +141,7 @@ helper 需要 `CODEX_CLI_PATH` 指向 codex.exe，否则报 `failed to launch co
 ## 架构
 
 ```
-DSH 工具层（5 个工具）
+DSH 工具层（6 个工具）
       │  参数校验、树截断、截图发布为附件、错误中文化
       ▼
 ComputerUseHelper（src/transport/helper.ts）
@@ -103,6 +157,8 @@ codex-computer-use.exe（Rust 原生助手）
 ---
 
 ## 安装
+
+**前置条件**：Node `^22.19.0 || >=24.0.0`（见 `package.json` 的 `engines`）。
 
 **从 git 安装（开箱即用）：**
 
@@ -156,7 +212,15 @@ npm run build   # esbuild 打包 src/index.ts → lib/index.js
 npm run smoke   # 真实驱动 helper 的冒烟测试（只读，不点击不输入）
 ```
 
+另有两个直接 `node` 跑的脚本，没有挂进 `npm run`：
+
+```bash
+node scripts/load-check.mjs      # 加载验证：用 mock context 跑一遍 apply()，确认工具注册与注入路径
+node scripts/smoke-capture.mjs   # 离线冒烟：截图兜底、剪贴板写入、桌面会话探测（不依赖 DSH）
+```
+
 `npm run smoke` 覆盖：路径探测、进程启动、JSON-RPC 往返、审批闭环（含 fail-closed 与缓存命中）、进程回收。
+`load-check` 适合**在改 profile 配置之前**先跑一次——它完全不触碰桌面。
 
 ---
 
@@ -176,8 +240,8 @@ npm run smoke   # 真实驱动 helper 的冒烟测试（只读，不点击不输
 - 提示 `SetIsBorderRequired failed` → 只会出现在强制指定 helper 截图后端时；
   Win10 默认已改走本地 PrintWindow。
 - 截图报「几乎全黑」 → 该窗口使用硬件加速渲染，PrintWindow 读不到；改用可访问性树。
-- 应用操作被反复询问 → 把该应用加进 `alwaysAllowedAppIds`，或调 `computer_use_status`
-  的 `reset` 后重新授权。
+- 报 `未授权 Computer Use 使用「X」`、或每次操作都要重新确认 → 该应用没拿到授权票，
+  处理办法见[授权模型](#授权模型)。
 
 ### 为什么锁屏要单独识别
 
@@ -192,3 +256,12 @@ npm run smoke   # 真实驱动 helper 的冒烟测试（只读，不点击不输
 
 插件因此把桌面锁定做成显式探测：`computer_use_status` 直接报告，
 输入类动作失败时也会补一次探测并把真正原因写进错误里。
+
+---
+
+## 许可
+
+MIT，见 [LICENSE](./LICENSE)。
+
+配套文件：[SKILL.md](./SKILL.md)（模型侧精简说明）、[docs/api.md](./docs/api.md)（完整参数）、
+[docs/guidance.md](./docs/guidance.md)（工作流纪律）、[docs/confirmations.md](./docs/confirmations.md)（确认策略）。

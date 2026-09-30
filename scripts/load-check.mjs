@@ -4,7 +4,7 @@
  * 目的是在改 DSH profile 配置之前，先确认：
  *   - lib/index.js 能被 import（外部依赖可解析）
  *   - apply() 不抛异常
- *   - 五个工具都完成了注册
+ *   - 六个工具都完成了注册
  *   - settings / systemPrompt 两条注入路径都能走通
  *
  * 不执行任何工具，因此不会触碰桌面。
